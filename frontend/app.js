@@ -1,11 +1,15 @@
-// CONFIG
-const API_URL = '#';
-const COGNITO_USER_POOL_ID = '#';
-const COGNITO_CLIENT_ID = '#';
-const S3_BUCKET = '#';
-const S3_REGION = '#';
-const S3_ACCESS_KEY = '#';
-const S3_SECRET_KEY = '#';
+// ============ CONFIG ============
+const API_URL = '###API_URL###';
+const COGNITO_USER_POOL_ID = '##CognitoUserPoolID###'; 
+const COGNITO_CLIENT_ID = '###CognitoClientID###'; 
+
+const S3_BUCKET = '###S3BucketName###';
+const S3_REGION = '###S3Region###';
+const S3_ACCESS_KEY = '###S3AccessKey###';
+const S3_SECRET_KEY = '###S3SecretKey###';
+// ======================================================
+
+
 
 // Cognito setup
 const poolData = {
@@ -23,14 +27,16 @@ let allPosts = [];
 let currentPost = null;
 let cognitoUser = null;
 
-// Initialization
+// Page load
 window.addEventListener('DOMContentLoaded', function() {
     checkAuth();
 });
 
-// AUTH
+// ============ AUTH FUNCTIONS ============
+
 function checkAuth() {
     currentUser = userPool.getCurrentUser();
+    
     if (currentUser) {
         currentUser.getSession((err, session) => {
             if (err) {
@@ -40,6 +46,7 @@ function checkAuth() {
             if (session.isValid()) {
                 idToken = session.getIdToken().getJwtToken();
                 currentUserId = session.getIdToken().payload.sub;
+                
                 currentUser.getUserAttributes((err, attributes) => {
                     if (!err) {
                         currentEmail = attributes.find(attr => attr.Name === 'email')?.Value;
@@ -90,8 +97,14 @@ function handleSignup() {
     }
 
     const attributeList = [
-        new AmazonCognitoIdentity.CognitoUserAttribute({ Name: 'email', Value: email }),
-        new AmazonCognitoIdentity.CognitoUserAttribute({ Name: 'name', Value: username })
+        new AmazonCognitoIdentity.CognitoUserAttribute({
+            Name: 'email',
+            Value: email
+        }),
+        new AmazonCognitoIdentity.CognitoUserAttribute({
+            Name: 'name',
+            Value: username
+        })
     ];
 
     userPool.signUp(email, password, attributeList, null, (err, result) => {
@@ -108,6 +121,7 @@ function handleSignup() {
 
 function handleVerify() {
     const code = document.getElementById('verifyCode').value.trim();
+
     if (!code) {
         alert('Please enter verification code');
         return;
@@ -138,6 +152,7 @@ function handleLogin() {
     };
 
     const authenticationDetails = new AmazonCognitoIdentity.AuthenticationDetails(authenticationData);
+
     const userData = {
         Username: email,
         Pool: userPool
@@ -150,6 +165,7 @@ function handleLogin() {
             idToken = result.getIdToken().getJwtToken();
             currentUserId = result.getIdToken().payload.sub;
             currentEmail = result.getIdToken().payload.email;
+            
             cognitoUser.getUserAttributes((err, attributes) => {
                 if (!err) {
                     currentUsername = attributes.find(attr => attr.Name === 'name')?.Value || 'User';
@@ -176,13 +192,15 @@ function handleLogout() {
     showAuthSection();
 }
 
-// PROFILE
+// ============ PROFILE FUNCTIONS ============
+
 function showProfile() {
     document.getElementById('profileName').textContent = currentUsername;
     document.getElementById('profileEmail').textContent = currentEmail;
     document.getElementById('displayUsername').textContent = currentUsername;
     document.getElementById('displayEmail').textContent = currentEmail;
     document.getElementById('profileAvatar').textContent = currentUsername.charAt(0).toUpperCase();
+    
     document.getElementById('profileView').classList.remove('hidden');
     document.getElementById('profileEdit').classList.add('hidden');
     document.getElementById('profileModal').classList.add('active');
@@ -207,13 +225,17 @@ function cancelEditProfile() {
 
 function saveProfile() {
     const newUsername = document.getElementById('editUsername').value.trim();
+    
     if (!newUsername) {
         alert('Username cannot be empty');
         return;
     }
 
     const attributeList = [
-        new AmazonCognitoIdentity.CognitoUserAttribute({ Name: 'name', Value: newUsername })
+        new AmazonCognitoIdentity.CognitoUserAttribute({
+            Name: 'name',
+            Value: newUsername
+        })
     ];
 
     currentUser.updateAttributes(attributeList, (err, result) => {
@@ -221,13 +243,15 @@ function saveProfile() {
             alert('Failed to update profile: ' + err.message);
             return;
         }
+        
         currentUsername = newUsername;
         alert('Profile updated successfully!');
         closeProfile();
     });
 }
 
-// NAVIGATION
+// ============ NAVIGATION ============
+
 function goToMainBlog() {
     document.getElementById('authSection').classList.add('hidden');
     document.getElementById('mainBlogSection').classList.remove('hidden');
@@ -242,7 +266,8 @@ function goToMyBlogs() {
     loadMyPosts();
 }
 
-// CREATE POST FORMS
+// ============ CREATE POST FORMS ============
+
 function showCreateFormMain() {
     document.getElementById('createFormMain').classList.remove('hidden');
 }
@@ -265,59 +290,73 @@ function hideCreateFormMy() {
     document.getElementById('imageUrlMy').value = '';
 }
 
-// BLOG OPERATIONS
+// ============ BLOG FUNCTIONS ============
+
 async function uploadImageToS3(file, section) {
     if (!file) return null;
-
+    
+    // Validate file type
     if (!file.type.startsWith('image/')) {
         alert('Please select an image file');
         return null;
     }
-
+    
+    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
         alert('Image size must be less than 5MB');
         return null;
     }
-
+    
+    // Show progress bar
     const progressDiv = document.getElementById(`uploadProgress${section === 'main' ? 'Main' : 'My'}`);
     const progressBar = document.getElementById(`uploadBar${section === 'main' ? 'Main' : 'My'}`);
     progressDiv.style.display = 'block';
     progressBar.style.width = '30%';
-
+    
     try {
+        // Configure AWS SDK
         AWS.config.update({
             accessKeyId: S3_ACCESS_KEY,
             secretAccessKey: S3_SECRET_KEY,
             region: S3_REGION
         });
-
+        
         const s3 = new AWS.S3();
+        
+        // Generate unique filename
         const timestamp = Date.now();
         const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
         const filename = `blog-images/${timestamp}-${safeName}`;
-
+        
+        // Prepare upload parameters
         const params = {
             Bucket: S3_BUCKET,
             Key: filename,
             Body: file,
             ContentType: file.type
         };
-
+        
+        // Upload to S3
         progressBar.style.width = '60%';
+        
         const data = await s3.upload(params).promise();
+        
         progressBar.style.width = '100%';
-
+        
+        // Hide progress bar after a short delay
         setTimeout(() => {
             progressDiv.style.display = 'none';
             progressBar.style.width = '0%';
         }, 500);
-
+        
+        // Return the public URL
         return data.Location;
+        
     } catch (error) {
         console.error('Upload error:', error);
         progressDiv.style.display = 'none';
         progressBar.style.width = '0%';
-        alert('Failed to upload image');
+        alert('Failed to upload image: ' + error.message + '\n\nPlease check:\n1. AWS credentials are correct\n2. S3 bucket permissions are set\n3. Internet connection is stable');
         return null;
     }
 }
@@ -328,9 +367,10 @@ async function createPostMain() {
     const imageFile = document.getElementById('imageFileMain').files[0];
     let imageUrl = document.getElementById('imageUrlMain').value.trim();
 
+    // If user uploaded a file, upload it first
     if (imageFile) {
         imageUrl = await uploadImageToS3(imageFile, 'main');
-        if (!imageUrl) return;
+        if (!imageUrl) return; // Upload failed
     }
 
     await createPost(title, content, imageUrl, 'main');
@@ -342,9 +382,10 @@ async function createPostMy() {
     const imageFile = document.getElementById('imageFileMy').files[0];
     let imageUrl = document.getElementById('imageUrlMy').value.trim();
 
+    // If user uploaded a file, upload it first
     if (imageFile) {
         imageUrl = await uploadImageToS3(imageFile, 'my');
-        if (!imageUrl) return;
+        if (!imageUrl) return; // Upload failed
     }
 
     await createPost(title, content, imageUrl, 'my');
@@ -352,7 +393,7 @@ async function createPostMy() {
 
 async function createPost(title, content, imageUrl, section) {
     if (!title || !content) {
-        alert('Please fill in title and content');
+        alert('Please fill in title and content!');
         return;
     }
 
@@ -387,69 +428,74 @@ async function createPost(title, content, imageUrl, section) {
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Error creating post');
+        alert('Error creating post. Check console for details.');
     }
 }
 
 async function loadAllPosts() {
     try {
         const response = await fetch(`${API_URL}/posts`, {
-            headers: { 'Authorization': idToken }
+            headers: {
+                'Authorization': idToken
+            }
         });
-
+        
         if (!response.ok) {
             throw new Error('Failed to load posts');
         }
-
+        
         allPosts = await response.json();
         displayAllPosts();
     } catch (error) {
         console.error('Error loading posts:', error);
-        document.getElementById('allPosts').innerHTML = '<div class="empty-state"><p>Error loading posts</p></div>';
+        document.getElementById('allPosts').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><p>Error loading posts</p></div>';
     }
 }
 
 async function loadMyPosts() {
     try {
         const response = await fetch(`${API_URL}/posts`, {
-            headers: { 'Authorization': idToken }
+            headers: {
+                'Authorization': idToken
+            }
         });
-
+        
         if (!response.ok) {
             throw new Error('Failed to load posts');
         }
-
+        
         allPosts = await response.json();
         displayMyPosts();
     } catch (error) {
         console.error('Error loading posts:', error);
-        document.getElementById('myPosts').innerHTML = '<div class="empty-state"><p>Error loading posts</p></div>';
+        document.getElementById('myPosts').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><p>Error loading posts</p></div>';
     }
 }
 
 function displayAllPosts() {
     const container = document.getElementById('allPosts');
-
+    
     if (!allPosts || allPosts.length === 0) {
-        container.innerHTML = '<div class="empty-state"><p>No posts yet</p></div>';
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📝</div><h3>No posts yet</h3><p>Be the first to create one!</p></div>';
         return;
     }
 
     container.innerHTML = allPosts.map(post => {
-        const isOwned = post.userId === currentUserId;
-        const excerpt = post.content.substring(0, 100) + '...';
-
+        const isMyPost = post.userId === currentUserId;
+        const excerpt = post.content.substring(0, 120) + (post.content.length > 120 ? '...' : '');
+        
         return `
             <div class="blog-card" onclick="openPost('${post.postId}')">
-                ${post.imageUrl ? `<img src="${escapeHtml(post.imageUrl)}" alt="${escapeHtml(post.title)}" class="blog-card-image" onerror="this.outerHTML='<div class=\\'blog-card-image no-image\\'>📄</div>'">` : '<div class="blog-card-image no-image">📄</div>'}
+                ${post.imageUrl 
+                    ? `<img src="${escapeHtml(post.imageUrl)}" alt="${escapeHtml(post.title)}" class="blog-card-image" onerror="this.outerHTML='<div class=\\'blog-card-image no-image\\'>📄</div>'">` 
+                    : '<div class="blog-card-image no-image">📄</div>'}
                 <div class="blog-card-content">
                     <h3 class="blog-card-title">${escapeHtml(post.title)}</h3>
                     <p class="blog-card-excerpt">${escapeHtml(excerpt)}</p>
                     <div class="blog-card-meta">
                         <span>By ${escapeHtml(post.author)}</span>
-                        <span>${post.views || 0} views</span>
                     </div>
-                    ${isOwned ? '<span class="user-badge">Your Post</span>' : ''}
+                    ${isMyPost ? '<span class="user-badge">Your Post</span>' : ''}
                 </div>
             </div>
         `;
@@ -459,24 +505,25 @@ function displayAllPosts() {
 function displayMyPosts() {
     const container = document.getElementById('myPosts');
     const myPosts = allPosts.filter(post => post.userId === currentUserId);
-
+    
     if (myPosts.length === 0) {
-        container.innerHTML = '<div class="empty-state"><p>You haven\'t created any posts</p></div>';
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✍️</div><h3>You haven\'t created any posts yet</h3><p>Create your first post!</p></div>';
         return;
     }
 
     container.innerHTML = myPosts.map(post => {
-        const excerpt = post.content.substring(0, 100) + '...';
-
+        const excerpt = post.content.substring(0, 120) + (post.content.length > 120 ? '...' : '');
+        
         return `
             <div class="blog-card" onclick="openPost('${post.postId}', true)">
-                ${post.imageUrl ? `<img src="${escapeHtml(post.imageUrl)}" alt="${escapeHtml(post.title)}" class="blog-card-image" onerror="this.outerHTML='<div class=\\'blog-card-image no-image\\'>📄</div>'">` : '<div class="blog-card-image no-image">📄</div>'}
+                ${post.imageUrl 
+                    ? `<img src="${escapeHtml(post.imageUrl)}" alt="${escapeHtml(post.title)}" class="blog-card-image" onerror="this.outerHTML='<div class=\\'blog-card-image no-image\\'>📄</div>'">` 
+                    : '<div class="blog-card-image no-image">📄</div>'}
                 <div class="blog-card-content">
                     <h3 class="blog-card-title">${escapeHtml(post.title)}</h3>
                     <p class="blog-card-excerpt">${escapeHtml(excerpt)}</p>
                     <div class="blog-card-meta">
                         <span>By ${escapeHtml(post.author)}</span>
-                        <span>${post.views || 0} views</span>
                     </div>
                 </div>
             </div>
@@ -484,19 +531,35 @@ function displayMyPosts() {
     }).join('');
 }
 
-// POST MODAL
+function hideCreateFormMain() {
+    document.getElementById('createFormMain').classList.add('hidden');
+    document.getElementById('titleMain').value = '';
+    document.getElementById('contentMain').value = '';
+    document.getElementById('imageUrlMain').value = '';
+    document.getElementById('imageFileMain').value = '';
+}
+
+function hideCreateFormMy() {
+    document.getElementById('createFormMy').classList.add('hidden');
+    document.getElementById('titleMy').value = '';
+    document.getElementById('contentMy').value = '';
+    document.getElementById('imageUrlMy').value = '';
+    document.getElementById('imageFileMy').value = '';
+}
+
+// ============ POST MODAL ============
+
 function openPost(postId, canDelete = false) {
     const post = allPosts.find(p => p.postId === postId);
     if (!post) return;
-
+    
     currentPost = post;
-
+    
     document.getElementById('modalTitle').textContent = post.title;
     document.getElementById('modalAuthor').textContent = '👤 ' + post.author;
     document.getElementById('modalDate').textContent = '📅 ' + formatDate(post.createdAt);
-    document.getElementById('modalViews').textContent = '👁️ ' + (post.views || 0) + ' views';
     document.getElementById('modalContent').textContent = post.content;
-
+    
     const modalImage = document.getElementById('modalImage');
     if (post.imageUrl) {
         modalImage.src = post.imageUrl;
@@ -504,10 +567,14 @@ function openPost(postId, canDelete = false) {
     } else {
         modalImage.style.display = 'none';
     }
-
+    
     const modalActions = document.getElementById('modalActions');
-    modalActions.style.display = canDelete ? 'flex' : 'none';
-
+    if (canDelete) {
+        modalActions.style.display = 'flex';
+    } else {
+        modalActions.style.display = 'none';
+    }
+    
     document.getElementById('postModal').classList.add('active');
     document.body.style.overflow = 'hidden';
 }
@@ -520,17 +587,21 @@ function closePostModal() {
 
 async function deletePostFromModal() {
     if (!currentPost) return;
-
-    if (!confirm('Delete this post?')) return;
+    
+    if (!confirm('Are you sure you want to delete this post?')) {
+        return;
+    }
 
     try {
         const response = await fetch(`${API_URL}/posts/${currentPost.postId}`, {
             method: 'DELETE',
-            headers: { 'Authorization': idToken }
+            headers: {
+                'Authorization': idToken
+            }
         });
 
         if (response.ok) {
-            alert('Post deleted!');
+            alert('Post deleted successfully!');
             closePostModal();
             loadMyPosts();
         } else {
@@ -542,7 +613,8 @@ async function deletePostFromModal() {
     }
 }
 
-// UTILITIES
+// ============ UTILITY FUNCTIONS ============
+
 function escapeHtml(text) {
     const map = {
         '&': '&amp;',
@@ -556,16 +628,9 @@ function escapeHtml(text) {
 
 function formatDate(dateString) {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
+    return date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
     });
 }
-
-document.addEventListener('click', function(event) {
-    const modal = document.getElementById('postModal');
-    if (event.target === modal) {
-        closePostModal();
-    }
-});
