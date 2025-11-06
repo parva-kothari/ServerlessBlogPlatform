@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Serverless Blog</title>
+    <!-- AWS Cognito SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.6/dist/amazon-cognito-identity.min.js"></script>
+    <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+    <div class="container">
+        <!-- Auth Section -->
+        <div id="authSection">
+            <div class="card auth-card">
+                <h2>Welcome to My Blog</h2>
+                
+                <!-- Login Form -->
+                <div id="loginForm">
+                    <h3>Login</h3>
+                    <input type="email" id="loginEmail" placeholder="Email" class="form-control">
+                    <input type="password" id="loginPassword" placeholder="Password" class="form-control">
+                    <button onclick="handleLogin()" class="btn btn--primary" style="width: 100%; margin-bottom: 12px;">Login</button>
+                    <p style="text-align: center;">Don't have an account? <a href="#" onclick="showSignupForm(); return false;">Sign up</a></p>
+                </div>
+
+                <!-- Signup Form -->
+                <div id="signupForm" class="hidden">
+                    <h3>Sign Up</h3>
+                    <input type="text" id="signupUsername" placeholder="Username" class="form-control">
+                    <input type="email" id="signupEmail" placeholder="Email" class="form-control">
+                    <input type="password" id="signupPassword" placeholder="Password (min 8 chars)" class="form-control">
+                    <button onclick="handleSignup()" class="btn btn--primary" style="width: 100%; margin-bottom: 12px;">Sign Up</button>
+                    <p style="text-align: center;">Already have an account? <a href="#" onclick="showLoginForm(); return false;">Login</a></p>
+                </div>
+
+                <!-- Verify Form -->
+                <div id="verifyForm" class="hidden">
+                    <h3>Verify Email</h3>
+                    <p>Check your email for verification code</p>
+                    <input type="text" id="verifyCode" placeholder="Verification Code" class="form-control">
+                    <button onclick="handleVerify()" class="btn btn--primary" style="width: 100%;">Verify</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Blog Section -->
+        <div id="mainBlogSection" class="hidden">
+            <header>
+                <h1>📝 Community Blog</h1>
+                <div class="flex gap-8">
+                    <button onclick="showProfile()" class="btn btn--secondary">My Profile</button>
+                    <button onclick="goToMyBlogs()" class="btn btn--primary">My Blogs</button>
+                    <button onclick="handleLogout()" class="btn btn--secondary">Logout</button>
+                </div>
+            </header>
+
+            <div style="margin-bottom: 32px;">
+                <button onclick="showCreateFormMain()" class="btn btn--primary">+ Create Post</button>
+            </div>
+
+            <div id="createFormMain" class="card hidden">
+                <h2>Create New Post</h2>
+                <input type="text" id="titleMain" placeholder="Post Title" class="form-control">
+                <textarea id="contentMain" placeholder="Write your post content here..." rows="8" class="form-control"></textarea>
+                
+                <label style="display: block; margin-bottom: 8px; font-weight: 500;">Post Image:</label>
+                <input type="file" id="imageFileMain" accept="image/*" class="form-control" style="padding: 8px;">
+                <p style="font-size: 13px; color: var(--color-text-secondary); margin-top: -8px; margin-bottom: 16px;">Or provide image URL below</p>
+                <input type="text" id="imageUrlMain" placeholder="Or paste image URL" class="form-control">
+                <div id="uploadProgressMain" style="display: none; margin-bottom: 16px;">
+                    <div style="background: #e2e8f0; border-radius: 4px; height: 8px; overflow: hidden;">
+                        <div id="uploadBarMain" style="background: var(--color-primary); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                    </div>
+                    <p style="font-size: 13px; color: var(--color-text-secondary); margin-top: 4px;">Uploading image...</p>
+                </div>
+
+                <div class="flex gap-12">
+                    <button onclick="createPostMain()" class="btn btn--primary">Publish</button>
+                    <button onclick="hideCreateFormMain()" class="btn btn--secondary">Cancel</button>
+                </div>
+            </div>
+
+            <h2 style="margin-bottom: 24px;">All Posts</h2>
+            <div id="allPosts" class="blog-grid"></div>
+        </div>
+
+        <!-- My Blogs Section -->
+        <div id="myBlogsSection" class="hidden">
+            <header>
+                <h1>📝 My Blogs</h1>
+                <div class="flex gap-8">
+                    <button onclick="showProfile()" class="btn btn--secondary">My Profile</button>
+                    <button onclick="goToMainBlog()" class="btn btn--secondary">← Back to All Posts</button>
+                    <button onclick="handleLogout()" class="btn btn--secondary">Logout</button>
+                </div>
+            </header>
+
+            <div style="margin-bottom: 32px;">
+                <button onclick="showCreateFormMy()" class="btn btn--primary">+ Create Post</button>
+            </div>
+
+            <div id="createFormMy" class="card hidden">
+                <h2>Create New Post</h2>
+                <input type="text" id="titleMy" placeholder="Post Title" class="form-control">
+                <textarea id="contentMy" placeholder="Write your post content here..." rows="8" class="form-control"></textarea>
+                
+                <label style="display: block; margin-bottom: 8px; font-weight: 500;">Post Image:</label>
+                <input type="file" id="imageFileMy" accept="image/*" class="form-control" style="padding: 8px;">
+                <p style="font-size: 13px; color: var(--color-text-secondary); margin-top: -8px; margin-bottom: 16px;">Or provide image URL below</p>
+                <input type="text" id="imageUrlMy" placeholder="Or paste image URL" class="form-control">
+                <div id="uploadProgressMy" style="display: none; margin-bottom: 16px;">
+                    <div style="background: #e2e8f0; border-radius: 4px; height: 8px; overflow: hidden;">
+                        <div id="uploadBarMy" style="background: var(--color-primary); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                    </div>
+                    <p style="font-size: 13px; color: var(--color-text-secondary); margin-top: 4px;">Uploading image...</p>
+                </div>
+
+                <div class="flex gap-12">
+                    <button onclick="createPostMy()" class="btn btn--primary">Publish</button>
+                    <button onclick="hideCreateFormMy()" class="btn btn--secondary">Cancel</button>
+                </div>
+            </div>
+
+            <h2 style="margin-bottom: 24px;">Your Posts</h2>
+            <div id="myPosts" class="blog-grid"></div>
+        </div>
+
+        <!-- Profile Modal -->
+        <div id="profileModal" class="modal">
+            <div class="modal-content" style="max-width: 600px;">
+                <button class="modal-close" onclick="closeProfile()">×</button>
+                <div class="modal-body">
+                    <div class="profile-header">
+                        <div class="profile-avatar" id="profileAvatar">U</div>
+                        <div class="profile-info">
+                            <h2 id="profileName">Username</h2>
+                            <p id="profileEmail">email@example.com</p>
+                        </div>
+                    </div>
+
+                    <div id="profileView">
+                        <h3>Profile Information</h3>
+                        <p><strong>Username:</strong> <span id="displayUsername"></span></p>
+                        <p><strong>Email:</strong> <span id="displayEmail"></span></p>
+                        <button onclick="showEditProfile()" class="btn btn--primary" style="margin-top: 16px;">Edit Profile</button>
+                    </div>
+
+                    <div id="profileEdit" class="hidden">
+                        <h3>Edit Profile</h3>
+                        <label>Username:</label>
+                        <input type="text" id="editUsername" class="form-control" placeholder="Username">
+                        <div class="flex gap-12" style="margin-top: 16px;">
+                            <button onclick="saveProfile()" class="btn btn--success">Save Changes</button>
+                            <button onclick="cancelEditProfile()" class="btn btn--secondary">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Post Detail Modal -->
+        <div id="postModal" class="modal">
+            <div class="modal-content">
+                <button class="modal-close" onclick="closePostModal()">×</button>
+                <img id="modalImage" class="modal-image" style="display: none;">
+                <div class="modal-body">
+                    <h1 id="modalTitle" class="modal-title"></h1>
+                    <div class="modal-meta">
+                        <span id="modalAuthor"></span>
+                        <span id="modalDate"></span>
+                    </div>
+                    <div id="modalContent" class="modal-content-text"></div>
+                    <div id="modalActions" class="flex gap-12" style="display: none;">
+                        <button onclick="deletePostFromModal()" class="btn btn--danger">Delete Post</button>
+                        <button onclick="closePostModal()" class="btn btn--secondary">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1543.0.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
+
